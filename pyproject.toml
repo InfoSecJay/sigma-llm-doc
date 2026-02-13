@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "sigma-llm-doc"
+version = "1.0.0"
+description = "Generate LLM-powered investigation guides for Sigma detection rules"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "ruamel.yaml>=0.18.0",
+    "openai>=1.0.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+]
+
+[project.scripts]
+sigma-llm-doc = "sigma_llm_doc.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/sigma_llm_doc"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

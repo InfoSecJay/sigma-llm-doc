@@ -1,0 +1,11 @@
+# sigma-llm-doc.yaml
+llm:
+  provider: openai          # Future: anthropic, ollama, etc.
+  model: gpt-4o-mini
+  api_key_env: OPENAI_API_KEY  # Name of the env var holding the key
+processing:
+  concurrency: 5
+  max_retries: 3             # Retries on validation failure
+  api_max_retries: 3         # Retries on API errors (rate limit, timeout)
+output:
+  directory: ./output        # Default output directory

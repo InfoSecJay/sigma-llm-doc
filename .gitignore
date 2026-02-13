@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment / secrets
+.env
+
+# sigma-llm-doc artifacts
+output/
+.sigma-llm-doc-cache.json
+sigma-llm-doc.log
+
+# OS
+.DS_Store
+Thumbs.db
