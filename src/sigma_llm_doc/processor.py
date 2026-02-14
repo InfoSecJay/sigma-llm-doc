@@ -113,7 +113,6 @@ async def process_rules(
 
     # Initialize cache
     cache = Cache(output_dir)
-    cache.set_prompt_hash(prompt_hash)
 
     # Collect rule files
     yaml_files = _collect_yaml_files(input_path)
@@ -149,7 +148,8 @@ async def process_rules(
     tasks = [asyncio.create_task(process_one(f)) for f in yaml_files]
     await asyncio.gather(*tasks)
 
-    # Save cache after all processing
+    # Update prompt hash and save cache after all processing
+    cache.set_prompt_hash(prompt_hash)
     cache.save()
 
     return result
