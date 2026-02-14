@@ -19,7 +19,9 @@ Mirrored external Sigma repo (SigmaHQ, LOLRMM, custom)
 ## Requirements
 
 - Python 3.10+
-- An OpenAI API key
+- An API key for at least one supported provider:
+  - **OpenAI** (`OPENAI_API_KEY`) -- default provider
+  - **Anthropic Claude** (`ANTHROPIC_API_KEY`)
 
 ## Installation
 
@@ -33,11 +35,13 @@ For development (includes pytest):
 pip install -e ".[dev]"
 ```
 
-Copy `.env.example` to `.env` and add your OpenAI API key:
+Copy `.env.example` to `.env` and add your API key(s):
 
 ```bash
 cp .env.example .env
-# Edit .env and set OPENAI_API_KEY=sk-...
+# Edit .env and set your provider's API key:
+#   OPENAI_API_KEY=sk-...
+#   ANTHROPIC_API_KEY=sk-ant-...
 ```
 
 Optionally, copy `config.example.yaml` to `sigma-llm-doc.yaml` to customize defaults:
@@ -52,8 +56,8 @@ After installation, the `sigma-llm-doc` command is available:
 
 ```
 usage: sigma-llm-doc [-h] [--config CONFIG] [--prompt PROMPT]
-                     [--output OUTPUT] [--model MODEL]
-                     [--concurrency N] [--force] [--check]
+                     [--output OUTPUT] [--provider {openai,claude}]
+                     [--model MODEL] [--concurrency N] [--force] [--check]
                      [--verbose | --quiet]
                      input
 
@@ -67,7 +71,9 @@ optional arguments:
   --config CONFIG       Path to config file (default: sigma-llm-doc.yaml)
   --prompt PROMPT       Path to prompt file (default: built-in prompt)
   --output OUTPUT       Output directory (default: ./output)
-  --model MODEL         LLM model to use (default: gpt-4o-mini)
+  --provider {openai,claude}
+                        LLM provider (default: openai)
+  --model MODEL         LLM model to use (default depends on provider)
   --concurrency N       Max concurrent API calls (default: 5)
   --force               Regenerate all guides, ignoring cache
   --check               Validate existing guides without generating new ones
@@ -107,6 +113,18 @@ Use a custom prompt and model:
 sigma-llm-doc ./sigma-rules/ --prompt my_prompt.txt --model gpt-4o
 ```
 
+Use Claude as the LLM provider:
+
+```bash
+sigma-llm-doc ./sigma-rules/ --provider claude
+```
+
+Use a specific Claude model:
+
+```bash
+sigma-llm-doc ./sigma-rules/ --provider claude --model claude-opus-4-6-20250929
+```
+
 ## Configuration
 
 Configuration is resolved with this priority: **CLI arguments > config file > defaults**.
@@ -117,8 +135,8 @@ Create `sigma-llm-doc.yaml` (or specify a path with `--config`):
 
 ```yaml
 llm:
-  provider: openai
-  model: gpt-4o-mini
+  provider: openai          # openai or claude
+  model: gpt-4o-mini        # model name (default depends on provider)
   api_key_env: OPENAI_API_KEY
 processing:
   concurrency: 5
@@ -128,9 +146,18 @@ output:
   directory: ./output
 ```
 
+### Supported Providers
+
+| Provider | `--provider` | Default Model | API Key Env Var |
+|----------|-------------|---------------|-----------------|
+| OpenAI | `openai` | `gpt-4o-mini` | `OPENAI_API_KEY` |
+| Anthropic Claude | `claude` | `claude-sonnet-4-5-20250929` | `ANTHROPIC_API_KEY` |
+
+When you switch providers with `--provider`, the default model and API key env var are automatically resolved. You can override the model with `--model` or the env var with `api_key_env` in the config file.
+
 ### Environment Variables
 
-The API key is read from the environment variable named in `api_key_env` (default: `OPENAI_API_KEY`). You can set it via:
+The API key is read from the environment variable for the selected provider (`OPENAI_API_KEY` for OpenAI, `ANTHROPIC_API_KEY` for Claude). You can set it via:
 
 - A `.env` file in the project root (loaded automatically via `python-dotenv`)
 - A system environment variable
@@ -188,7 +215,7 @@ sigma-llm-doc/
     sigma_llm_doc/
       __init__.py
       cli.py                  # CLI entry point (argparse, logging, summary)
-      llm_provider.py         # LLM abstraction layer (OpenAI default, swappable)
+      llm_provider.py         # LLM abstraction layer (OpenAI, Claude)
       processor.py            # Core logic: load rules, detect changes, orchestrate
       validator.py            # Validate generated markdown against required format
       cache.py                # Content + prompt hashing, cache read/write
