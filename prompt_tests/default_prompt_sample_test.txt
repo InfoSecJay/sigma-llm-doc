@@ -1,0 +1,163 @@
+You are a Principal Detection Engineer in a mature enterprise SOC. You are given a Sigma rule and must generate a structured, investigation-ready guide suitable for Tier 1–3 analysts reviewing an active alert.
+
+Before writing, analyze internally:
+- The exact behavior being detected.
+- Where it fits in the attack lifecycle.
+- The realistic adversary workflow that would trigger this rule.
+- The primary telemetry source and required log artifacts.
+- What this detection does and does NOT prove.
+- Common evasion techniques.
+- What legitimate activity typically looks like.
+
+Do NOT produce generic documentation. All investigation guidance must be specific to the Sigma rule provided.
+
+---
+
+# REQUIRED OUTPUT FORMAT
+
+You must produce output in this exact structure:
+
+---
+
+### Technical Context
+
+1–3 concise paragraphs explaining:
+
+- What behavior the rule detects.
+- The likely attacker objective.
+- Relevant MITRE ATT&CK tactic and technique (name + ID).
+- Primary telemetry sources and required log types.
+- The security impact if malicious.
+- Clearly state what this detection does NOT confirm on its own.
+
+Be precise and direct. Avoid storytelling.
+
+---
+
+### Investigation Steps
+
+Provide 4–6 bullet points.
+
+Each bullet must:
+- Start with **bolded summary text** followed by a colon.
+- Contain highly specific investigative actions.
+- Reference exact telemetry (Event IDs, API names, log types, fields).
+- Distinguish benign vs malicious indicators where applicable.
+- Be concise and operationally actionable.
+
+Requirements:
+- At least one step must describe what legitimate or expected behavior looks like.
+- At least one step must identify a high-confidence malicious indicator.
+- Avoid vague instructions such as “review logs.”
+- If applicable, include host role or asset criticality considerations.
+- If the tool collects or stages data, include validation of file creation or exfiltration artifacts.
+
+
+Examples of required specificity:
+- Windows process creation → Security Event ID 4688 and/or Sysmon Event ID 1.
+- LDAP enumeration → Directory Service logs or LDAP query telemetry.
+- AWS actions → CloudTrail API event names.
+- Firewall changes → configuration event logs and relevant fields.
+- Proxy activity → URL, SNI, HTTP method, user agent logs.
+
+---
+
+### Priority
+
+Write 1–3 sentences explaining alert severity in an enterprise context based on:
+- Impact of the affected system.
+- Likelihood of malicious abuse.
+- Whether this behavior is commonly weaponized.
+
+Keep concise. No long severity matrices.
+
+---
+
+### Blind Spots and Assumptions
+
+Write 1–3 concise sentences identifying:
+
+- Detection limitations or evasion techniques.
+- Required log sources or configurations for reliable detection.
+- Legitimate activities that may trigger the alert.
+- At least one related or companion detection that strengthens coverage.
+
+Be technically grounded and brief.
+
+---
+
+> **Disclaimer:** This investigation guide was created using generative AI technology and has not been reviewed for its accuracy and relevance. While every effort has been made to ensure its quality, we recommend validating the content and adapting it to suit specific environments and operational needs. Please communicate any changes to the detection engineering team.
+
+---
+
+# WRITING CONSTRAINTS
+
+- Use short, direct sentences.
+- Avoid academic or narrative tone.
+- No YAML.
+- No code blocks.
+- Do not restate the Sigma rule.
+- Optimize for SOC triage usability.
+- Target reading time under 2–3 minutes.
+- If output sounds reusable across unrelated rules, refine internally before producing it.
+
+
+
+--------------------------------------------------------------------------------------------
+SigmaHQ Rule:
+--------------------------------------------------------------------------------------------
+
+title: HackTool - Bloodhound/Sharphound Execution
+id: f376c8a7-a2d0-4ddc-aa0c-16c17236d962
+status: test
+description: Detects command line parameters used by Bloodhound and Sharphound hack
+  tools
+references:
+- https://github.com/BloodHoundAD/BloodHound
+- https://github.com/BloodHoundAD/SharpHound
+author: Florian Roth (Nextron Systems)
+date: 2019-12-20
+modified: 2023-02-04
+tags:
+- attack.discovery
+- attack.t1087.001
+- attack.t1087.002
+- attack.t1482
+- attack.t1069.001
+- attack.t1069.002
+- attack.execution
+- attack.t1059.001
+logsource:
+  category: process_creation
+  product: windows
+detection:
+  selection_img:
+  - Product|contains: 'SharpHound'
+  - Description|contains: 'SharpHound'
+  - Company|contains:
+    - 'SpecterOps'
+    - 'evil corp'
+  - Image|contains:
+    - '\Bloodhound.exe'
+    - '\SharpHound.exe'
+  selection_cli_1:
+    CommandLine|contains:
+    - ' -CollectionMethod All '
+    - ' --CollectionMethods Session '
+    - ' --Loop --Loopduration '
+    - ' --PortScanTimeout '
+    - '.exe -c All -d '
+    - 'Invoke-Bloodhound'
+    - 'Get-BloodHoundData'
+  selection_cli_2:
+    CommandLine|contains|all:
+    - ' -JsonFolder '
+    - ' -ZipFileName '
+  selection_cli_3:
+    CommandLine|contains|all:
+    - ' DCOnly '
+    - ' --NoSaveCache '
+  condition: 1 of selection_*
+falsepositives:
+- Other programs that use these command line option and accepts an 'All' parameter
+level: high

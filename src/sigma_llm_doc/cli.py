@@ -94,9 +94,15 @@ def parse_args() -> argparse.Namespace:
         help="Output directory (default: ./output)",
     )
     parser.add_argument(
+        "--provider",
+        default=None,
+        choices=["openai", "claude"],
+        help="LLM provider (default: openai)",
+    )
+    parser.add_argument(
         "--model",
         default=None,
-        help="LLM model to use (default: gpt-4o-mini)",
+        help="LLM model to use (default depends on provider)",
     )
     parser.add_argument(
         "--concurrency",
@@ -198,6 +204,7 @@ def print_summary(cfg, result) -> None:
         "========================================",
         f"Input:        {cfg.input_path}",
         f"Output:       {cfg.output_dir}",
+        f"Provider:     {cfg.provider}",
         f"Model:        {cfg.model}",
         f"Prompt:       {prompt_str}",
         "",

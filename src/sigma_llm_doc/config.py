@@ -21,6 +21,18 @@ DEFAULTS = {
     "output": "./output",
 }
 
+# Default API key env var per provider
+PROVIDER_API_KEY_ENV = {
+    "openai": "OPENAI_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
+}
+
+# Default model per provider
+PROVIDER_DEFAULT_MODEL = {
+    "openai": "gpt-4o-mini",
+    "claude": "claude-sonnet-4-5-20250929",
+}
+
 
 @dataclass
 class AppConfig:
@@ -62,7 +74,16 @@ def load_config(args) -> AppConfig:
     # Merge: CLI args > config file > defaults
     provider = _resolve("provider", args, file_cfg, "llm")
     model = _resolve("model", args, file_cfg, "llm")
-    api_key_env = file_cfg.get("llm", {}).get("api_key_env", DEFAULTS["api_key_env"])
+
+    # If model wasn't explicitly set but provider was, use the provider's default model
+    cli_model = getattr(args, "model", None)
+    file_model = file_cfg.get("llm", {}).get("model")
+    if cli_model is None and file_model is None and provider in PROVIDER_DEFAULT_MODEL:
+        model = PROVIDER_DEFAULT_MODEL[provider]
+
+    # Resolve API key env var: config file > provider default > global default
+    default_api_key_env = PROVIDER_API_KEY_ENV.get(provider, DEFAULTS["api_key_env"])
+    api_key_env = file_cfg.get("llm", {}).get("api_key_env", default_api_key_env)
     concurrency = _resolve("concurrency", args, file_cfg, "processing")
     max_retries = int(
         file_cfg.get("processing", {}).get("max_retries", DEFAULTS["max_retries"])
