@@ -15,6 +15,8 @@ REQUIRED_HEADERS = [
 
 DISCLAIMER_PREFIX = "> **Disclaimer:**"
 
+DISCLAIMER_TEXT = "> **Disclaimer:** This investigation guide was created using generative AI technology and has not been reviewed for its accuracy and relevance. While every effort has been made to ensure its quality, we recommend validating the content and adapting it to suit specific environments and operational needs. Please communicate any changes to the detection engineering team."
+
 MINIMUM_LENGTH = 200
 
 
@@ -62,10 +64,6 @@ def validate_response(text: str) -> ValidationResult:
     for header in REQUIRED_HEADERS:
         if header not in text:
             errors.append(f"Missing required header: {header}")
-
-    # Check disclaimer blockquote
-    if DISCLAIMER_PREFIX not in text:
-        errors.append("Missing disclaimer blockquote (> **Disclaimer:**)")
 
     # Check for * bullets (should use - instead)
     # Match lines starting with optional whitespace, then * and a space (bullet syntax).

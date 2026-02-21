@@ -86,10 +86,6 @@ Be technically grounded and brief.
 
 ---
 
-> **Disclaimer:** This investigation guide was created using generative AI technology and has not been reviewed for its accuracy and relevance. While every effort has been made to ensure its quality, we recommend validating the content and adapting it to suit specific environments and operational needs. Please communicate any changes to the detection engineering team.
-
----
-
 # WRITING CONSTRAINTS
 
 - Use short, direct sentences.

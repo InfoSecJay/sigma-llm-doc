@@ -10,7 +10,7 @@ from ruamel.yaml.scalarstring import LiteralScalarString
 
 from .cache import Cache, compute_rule_hash, compute_prompt_hash
 from .llm_provider import LLMProvider
-from .validator import validate_response
+from .validator import validate_response, DISCLAIMER_TEXT
 
 logger = logging.getLogger(__name__)
 
@@ -258,8 +258,10 @@ async def _process_single_rule(
         )
         return
 
-    # Clean and set the note field
+    # Clean and set the note field, appending disclaimer if missing
     cleaned = _clean_markdown(response)
+    if DISCLAIMER_TEXT not in cleaned:
+        cleaned = cleaned.rstrip("\n") + "\n\n" + DISCLAIMER_TEXT + "\n"
     rule_data["note"] = LiteralScalarString(cleaned)
 
     # Write enriched rule to output directory

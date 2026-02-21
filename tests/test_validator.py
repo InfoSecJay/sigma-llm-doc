@@ -57,11 +57,11 @@ def test_missing_header_fails():
     assert any("### Prioritization" in e for e in result.errors)
 
 
-def test_missing_disclaimer_fails():
+def test_missing_disclaimer_still_passes():
+    """Disclaimer is now appended programmatically, so validation should pass without it."""
     text = VALID_RESPONSE.replace("> **Disclaimer:**", "> Note:")
     result = validate_response(text)
-    assert not result.passed
-    assert any("Disclaimer" in e for e in result.errors)
+    assert result.passed, f"Expected pass but got: {result}"
 
 
 def test_star_bullets_fail():
