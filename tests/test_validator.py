@@ -93,3 +93,56 @@ def test_empty_section_fails():
     # This corrupts the doc but the important thing is the empty section check
     result = validate_response(text)
     assert not result.passed
+
+
+def test_divider_lines_fail():
+    text = VALID_RESPONSE.replace(
+        "### Investigation Steps",
+        "---\n\n### Investigation Steps",
+    )
+    result = validate_response(text)
+    assert not result.passed
+    assert any("divider" in e.lower() for e in result.errors)
+
+
+def test_numbered_lists_fail():
+    text = VALID_RESPONSE.replace(
+        "- **Review process lineage**:",
+        "1. **Review process lineage**:",
+    )
+    result = validate_response(text)
+    assert not result.passed
+    assert any("numbered" in e.lower() for e in result.errors)
+
+
+def test_wrong_header_level_fail():
+    text = VALID_RESPONSE.replace("### Technical Context", "## Technical Context")
+    result = validate_response(text)
+    assert not result.passed
+    assert any("top-level header" in e.lower() for e in result.errors)
+
+
+def test_investigation_steps_minimum_bullets():
+    # Replace investigation steps with only 2 bullets
+    text = VALID_RESPONSE.replace(
+        "- **Review process lineage**: Examine the parent-child process chain to determine\n"
+        "  how the suspicious process was launched and whether it originated from a\n"
+        "  known-good application.\n"
+        "- **Check for credential access artifacts**: Look for lsass.exe memory access\n"
+        "  events, suspicious DLL loads, and related file system artifacts on the endpoint.\n"
+        "- **Correlate with authentication logs**: Search for anomalous logon events\n"
+        "  (Event ID 4624/4625) around the time of the alert to identify lateral movement.\n"
+        "- **Assess endpoint posture**: Verify EDR telemetry for additional indicators\n"
+        "  such as privilege escalation or persistence mechanisms.",
+        "- **Review process lineage**: Check the process tree.\n"
+        "- **Check artifacts**: Look for suspicious files.",
+    )
+    result = validate_response(text)
+    assert not result.passed
+    assert any("bullet" in e.lower() for e in result.errors)
+
+
+def test_divider_free_response_passes():
+    """Confirm the canonical valid response (no dividers) still passes."""
+    result = validate_response(VALID_RESPONSE)
+    assert result.passed

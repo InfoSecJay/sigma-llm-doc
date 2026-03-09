@@ -1,7 +1,7 @@
 # sigma-llm-doc.yaml
 llm:
-  provider: openai          # Future: anthropic, ollama, etc.
-  model: gpt-4o-mini
+  provider: openai          # openai, claude, or gemini
+  model: gpt-4o-mini        # model name (default depends on provider)
   api_key_env: OPENAI_API_KEY  # Name of the env var holding the key
 processing:
   concurrency: 5

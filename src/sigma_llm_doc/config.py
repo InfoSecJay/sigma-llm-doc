@@ -25,12 +25,14 @@ DEFAULTS = {
 PROVIDER_API_KEY_ENV = {
     "openai": "OPENAI_API_KEY",
     "claude": "ANTHROPIC_API_KEY",
+    "gemini": "GEMINI_API_KEY",
 }
 
 # Default model per provider
 PROVIDER_DEFAULT_MODEL = {
     "openai": "gpt-4o-mini",
     "claude": "claude-sonnet-4-5-20250929",
+    "gemini": "gemini-2.0-flash",
 }
 
 
@@ -119,7 +121,7 @@ def load_config(args) -> AppConfig:
         logger.error("Input path does not exist: %s", input_path)
         raise SystemExit(1)
 
-    return AppConfig(
+    cfg = AppConfig(
         input_path=input_path,
         output_dir=Path(output),
         prompt_file=prompt_file,
@@ -134,6 +136,9 @@ def load_config(args) -> AppConfig:
         verbose=args.verbose,
         quiet=args.quiet,
     )
+
+    _validate_config(cfg)
+    return cfg
 
 
 def _load_config_file(config_path: str | None) -> dict:
@@ -166,6 +171,32 @@ def _load_config_file(config_path: str | None) -> dict:
         return dict(data)
     except Exception as e:
         logger.error("Failed to parse config file %s: %s", path, e)
+        raise SystemExit(1)
+
+
+def _validate_config(cfg: AppConfig) -> None:
+    """Validate configuration values, raising SystemExit on invalid settings."""
+    if cfg.provider not in PROVIDER_API_KEY_ENV:
+        logger.error(
+            "Unknown provider '%s'. Available: %s",
+            cfg.provider, ", ".join(PROVIDER_API_KEY_ENV.keys()),
+        )
+        raise SystemExit(1)
+
+    if not cfg.model or not cfg.model.strip():
+        logger.error("Model name must not be empty")
+        raise SystemExit(1)
+
+    if cfg.concurrency < 1:
+        logger.error("Concurrency must be at least 1, got %d", cfg.concurrency)
+        raise SystemExit(1)
+
+    if cfg.max_retries < 1:
+        logger.error("max_retries must be at least 1, got %d", cfg.max_retries)
+        raise SystemExit(1)
+
+    if cfg.api_max_retries < 1:
+        logger.error("api_max_retries must be at least 1, got %d", cfg.api_max_retries)
         raise SystemExit(1)
 
 

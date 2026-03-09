@@ -14,6 +14,12 @@ from .validator import validate_response, DISCLAIMER_TEXT
 
 logger = logging.getLogger(__name__)
 
+# Guard against runaway LLM responses
+MAX_RESPONSE_LENGTH = 50_000
+
+# Process rules in batches for better memory management and progress visibility
+BATCH_SIZE = 50
+
 
 @dataclass
 class ProcessingResult:
@@ -23,6 +29,8 @@ class ProcessingResult:
     skipped: int = 0
     failed: int = 0
     failures: list[str] = field(default_factory=list)
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
 
 
 def _get_default_prompt() -> str:
@@ -35,10 +43,15 @@ def _get_default_prompt() -> str:
 def _clean_markdown(text: str) -> str:
     """Normalize whitespace in generated markdown for clean YAML embedding.
 
-    Collapses multiple blank lines into single blank lines, strips trailing
-    whitespace from each line, and ensures a single trailing newline.
+    Strips horizontal rule dividers (---), collapses multiple blank lines into
+    single blank lines, strips trailing whitespace from each line, and ensures
+    a single trailing newline.
     """
     lines = text.strip().splitlines()
+
+    # Remove horizontal rule dividers for consistent formatting
+    lines = [line for line in lines if line.strip() != '---']
+
     output: list[str] = []
     prev_blank = True
 
@@ -66,9 +79,13 @@ def _collect_yaml_files(input_path: Path) -> list[Path]:
             return [input_path]
         return []
 
+    resolved_base = input_path.resolve()
     files = []
     for ext in ("*.yml", "*.yaml"):
-        files.extend(input_path.rglob(ext))
+        for f in input_path.rglob(ext):
+            # Prevent symlink traversal outside the input directory
+            if f.resolve().is_relative_to(resolved_base):
+                files.append(f)
     return sorted(files)
 
 
@@ -127,7 +144,10 @@ async def process_rules(
     # Determine the base input directory for relative path computation
     input_base = input_path if input_path.is_dir() else input_path.parent
 
-    # Process with semaphore-controlled concurrency
+    # Resolve output directory for path traversal prevention
+    output_dir_resolved = output_dir.resolve()
+
+    # Process with semaphore-controlled concurrency in batches
     semaphore = asyncio.Semaphore(concurrency)
 
     async def process_one(rule_file: Path) -> None:
@@ -136,6 +156,7 @@ async def process_rules(
                 rule_file=rule_file,
                 input_base=input_base,
                 output_dir=output_dir,
+                output_dir_resolved=output_dir_resolved,
                 provider=provider,
                 prompt_text=prompt_text,
                 prompt_hash=prompt_hash,
@@ -145,8 +166,16 @@ async def process_rules(
                 result=result,
             )
 
-    tasks = [asyncio.create_task(process_one(f)) for f in yaml_files]
-    await asyncio.gather(*tasks)
+    total_batches = (len(yaml_files) + BATCH_SIZE - 1) // BATCH_SIZE
+    for i in range(0, len(yaml_files), BATCH_SIZE):
+        chunk = yaml_files[i:i + BATCH_SIZE]
+        tasks = [asyncio.create_task(process_one(f)) for f in chunk]
+        await asyncio.gather(*tasks)
+        batch_num = i // BATCH_SIZE + 1
+        logger.info(
+            "Batch %d/%d complete — processed: %d, skipped: %d, failed: %d",
+            batch_num, total_batches, result.processed, result.skipped, result.failed,
+        )
 
     # Update prompt hash and save cache after all processing
     cache.set_prompt_hash(prompt_hash)
@@ -159,6 +188,7 @@ async def _process_single_rule(
     rule_file: Path,
     input_base: Path,
     output_dir: Path,
+    output_dir_resolved: Path,
     provider: LLMProvider,
     prompt_text: str,
     prompt_hash: str,
@@ -181,6 +211,13 @@ async def _process_single_rule(
 
     # Compute output path (mirror source directory structure)
     output_file = output_dir / relative
+
+    # Path traversal prevention: ensure output stays within output directory
+    if not output_file.resolve().is_relative_to(output_dir_resolved):
+        logger.error("Path traversal detected: %s escapes output directory", relative_str)
+        result.failed += 1
+        result.failures.append(f"{relative_str}: Path traversal blocked")
+        return
 
     logger.debug("Processing: %s", relative_str)
 
@@ -222,7 +259,10 @@ async def _process_single_rule(
 
     for attempt in range(1, max_retries + 1):
         try:
-            raw_response = await provider.generate(prompt_text, rule_text)
+            gen_result = await provider.generate(prompt_text, rule_text)
+            raw_response = gen_result.text
+            result.total_input_tokens += gen_result.input_tokens
+            result.total_output_tokens += gen_result.output_tokens
         except Exception as e:
             logger.error(
                 "LLM API error for %s (attempt %d/%d): %s",
@@ -231,6 +271,19 @@ async def _process_single_rule(
             if attempt == max_retries:
                 result.failed += 1
                 result.failures.append(f"{relative_str}: API error — {e}")
+                return
+            continue
+
+        # Guard against excessively long responses
+        if len(raw_response) > MAX_RESPONSE_LENGTH:
+            logger.warning(
+                "Response too long for %s (%d chars, max %d) — treating as validation failure",
+                relative_str, len(raw_response), MAX_RESPONSE_LENGTH,
+            )
+            last_validation = None
+            if attempt == max_retries:
+                result.failed += 1
+                result.failures.append(f"{relative_str}: Response too long ({len(raw_response)} chars)")
                 return
             continue
 

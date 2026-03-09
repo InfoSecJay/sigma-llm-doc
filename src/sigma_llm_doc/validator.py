@@ -19,6 +19,9 @@ DISCLAIMER_TEXT = "> **Disclaimer:** This investigation guide was created using 
 
 MINIMUM_LENGTH = 200
 
+# Investigation Steps must have at least this many bullet points
+MIN_INVESTIGATION_BULLETS = 3
+
 
 @dataclass
 class ValidationResult:
@@ -40,8 +43,12 @@ def validate_response(text: str) -> ValidationResult:
         2. Disclaimer blockquote is present.
         3. Bullet items use dash prefix (no * bullets).
         4. No triple-backtick code blocks.
-        5. Each section has at least 1 line of content after the header.
-        6. Total response is at least 200 characters.
+        5. No horizontal rule dividers (---).
+        6. No numbered lists (1. style) — must use dash bullets.
+        7. Only ### level headers allowed (not # or ##).
+        8. Each section has at least 1 line of content after the header.
+        9. Investigation Steps has at least MIN_INVESTIGATION_BULLETS bullet points.
+        10. Total response is at least 200 characters.
 
     Args:
         text: The raw LLM response text.
@@ -66,8 +73,6 @@ def validate_response(text: str) -> ValidationResult:
             errors.append(f"Missing required header: {header}")
 
     # Check for * bullets (should use - instead)
-    # Match lines starting with optional whitespace, then * and a space (bullet syntax).
-    # This won't match **bold** markers since those have ** with no space between.
     star_bullet_pattern = re.compile(r"^\s*\*\s", re.MULTILINE)
     if star_bullet_pattern.search(text):
         errors.append("Found * bullet(s) — must use dash-prefixed (-) bullets only")
@@ -76,8 +81,24 @@ def validate_response(text: str) -> ValidationResult:
     if "```" in text:
         errors.append("Found triple-backtick code block(s) — code blocks are not allowed")
 
+    # Check for horizontal rule dividers (---)
+    if re.search(r'^\s*---\s*$', text, re.MULTILINE):
+        errors.append("Found horizontal rule divider(s) (---) — dividers are not allowed")
+
+    # Check for numbered lists (should use - bullets)
+    if re.search(r"^\s*\d+\.\s", text, re.MULTILINE):
+        errors.append("Found numbered list(s) — must use dash-prefixed (-) bullets only")
+
+    # Check for wrong header levels (only ### is allowed)
+    # Match # or ## but not ### (i.e., 1-2 hashes followed by space)
+    if re.search(r"^#{1,2}\s", text, re.MULTILINE):
+        errors.append("Found top-level header(s) (# or ##) — only ### headers are allowed")
+
     # Check non-empty sections (each header must have content after it)
     _check_section_content(text, errors)
+
+    # Check minimum bullet count in Investigation Steps
+    _check_investigation_bullets(text, errors)
 
     passed = len(errors) == 0
     return ValidationResult(passed=passed, errors=errors)
@@ -112,3 +133,31 @@ def _check_section_content(text: str, errors: list[str]) -> None:
 
         if not has_content:
             errors.append(f"Section '{header}' has no content after the header")
+
+
+def _check_investigation_bullets(text: str, errors: list[str]) -> None:
+    """Verify Investigation Steps section has at least MIN_INVESTIGATION_BULLETS bullet points."""
+    lines = text.strip().splitlines()
+
+    try:
+        idx = next(
+            i for i, line in enumerate(lines)
+            if line.strip() == "### Investigation Steps"
+        )
+    except StopIteration:
+        # Header missing — already reported
+        return
+
+    bullet_count = 0
+    for subsequent in lines[idx + 1:]:
+        stripped = subsequent.strip()
+        if stripped.startswith("### "):
+            break
+        if stripped.startswith("- "):
+            bullet_count += 1
+
+    if bullet_count < MIN_INVESTIGATION_BULLETS:
+        errors.append(
+            f"Investigation Steps has {bullet_count} bullet(s), "
+            f"minimum {MIN_INVESTIGATION_BULLETS} required"
+        )

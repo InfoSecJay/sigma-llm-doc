@@ -3,13 +3,25 @@
 import asyncio
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 
 from openai import AsyncOpenAI, APIError, RateLimitError, APITimeoutError, APIConnectionError
 
 import anthropic
 from anthropic import AsyncAnthropic
 
+from google import genai
+from google.genai import errors as genai_errors
+
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class GenerateResult:
+    """Result from an LLM generation call, including token usage."""
+    text: str
+    input_tokens: int = 0
+    output_tokens: int = 0
 
 # Provider registry for extensibility
 _PROVIDERS: dict[str, type["LLMProvider"]] = {}
@@ -35,7 +47,7 @@ class LLMProvider(ABC):
     """Base class for LLM providers."""
 
     @abstractmethod
-    async def generate(self, prompt: str, rule_text: str) -> str:
+    async def generate(self, prompt: str, rule_text: str) -> GenerateResult:
         """Generate an investigation guide for a Sigma rule.
 
         Args:
@@ -43,7 +55,7 @@ class LLMProvider(ABC):
             rule_text: The full Sigma rule YAML text.
 
         Returns:
-            The generated markdown investigation guide.
+            A GenerateResult with the generated text and token usage.
         """
         ...
 
@@ -57,7 +69,7 @@ class OpenAIProvider(LLMProvider):
         self.model = model
         self.api_max_retries = api_max_retries
 
-    async def generate(self, prompt: str, rule_text: str) -> str:
+    async def generate(self, prompt: str, rule_text: str) -> GenerateResult:
         """Call the OpenAI chat completions API with exponential backoff retry."""
         last_exception = None
 
@@ -76,7 +88,12 @@ class OpenAIProvider(LLMProvider):
                 content = response.choices[0].message.content
                 if content is None:
                     content = ""
-                return content.strip()
+                usage = response.usage
+                return GenerateResult(
+                    text=content.strip(),
+                    input_tokens=usage.prompt_tokens if usage else 0,
+                    output_tokens=usage.completion_tokens if usage else 0,
+                )
 
             except RateLimitError as e:
                 last_exception = e
@@ -126,7 +143,7 @@ class ClaudeProvider(LLMProvider):
         self.model = model
         self.api_max_retries = api_max_retries
 
-    async def generate(self, prompt: str, rule_text: str) -> str:
+    async def generate(self, prompt: str, rule_text: str) -> GenerateResult:
         """Call the Anthropic Messages API with exponential backoff retry."""
         last_exception = None
 
@@ -144,7 +161,11 @@ class ClaudeProvider(LLMProvider):
                     ],
                 )
                 content = message.content[0].text if message.content else ""
-                return content.strip()
+                return GenerateResult(
+                    text=content.strip(),
+                    input_tokens=message.usage.input_tokens if message.usage else 0,
+                    output_tokens=message.usage.output_tokens if message.usage else 0,
+                )
 
             except anthropic.RateLimitError as e:
                 last_exception = e
@@ -180,6 +201,67 @@ class ClaudeProvider(LLMProvider):
         # All retries exhausted
         logger.error(
             "Claude API call failed after %d attempts: %s",
+            self.api_max_retries, last_exception,
+        )
+        raise last_exception
+
+
+@register_provider("gemini")
+class GeminiProvider(LLMProvider):
+    """Google Gemini LLM provider using the google-genai SDK."""
+
+    def __init__(self, api_key: str, model: str = "gemini-2.0-flash", api_max_retries: int = 3):
+        self.client = genai.Client(api_key=api_key)
+        self.model = model
+        self.api_max_retries = api_max_retries
+
+    async def generate(self, prompt: str, rule_text: str) -> GenerateResult:
+        """Call the Gemini API with exponential backoff retry."""
+        last_exception = None
+
+        for attempt in range(1, self.api_max_retries + 1):
+            try:
+                logger.debug(
+                    "Gemini API call attempt %d/%d (model=%s)",
+                    attempt, self.api_max_retries, self.model,
+                )
+                response = await self.client.aio.models.generate_content(
+                    model=self.model,
+                    contents=f"{prompt}\n\n{rule_text}",
+                )
+                content = response.text or ""
+                usage = response.usage_metadata
+                return GenerateResult(
+                    text=content.strip(),
+                    input_tokens=usage.prompt_token_count if usage else 0,
+                    output_tokens=usage.candidates_token_count if usage else 0,
+                )
+
+            except genai_errors.ClientError as e:
+                last_exception = e
+                if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
+                    wait = 2 ** attempt
+                    logger.warning(
+                        "Rate limited (attempt %d/%d). Retrying in %ds...",
+                        attempt, self.api_max_retries, wait,
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    logger.error("Non-retryable client error: %s", e)
+                    raise
+
+            except genai_errors.ServerError as e:
+                last_exception = e
+                wait = 2 ** attempt
+                logger.warning(
+                    "Server error (attempt %d/%d): %s. Retrying in %ds...",
+                    attempt, self.api_max_retries, e, wait,
+                )
+                await asyncio.sleep(wait)
+
+        # All retries exhausted
+        logger.error(
+            "Gemini API call failed after %d attempts: %s",
             self.api_max_retries, last_exception,
         )
         raise last_exception

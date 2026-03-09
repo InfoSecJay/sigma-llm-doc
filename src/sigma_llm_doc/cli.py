@@ -96,7 +96,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--provider",
         default=None,
-        choices=["openai", "claude"],
+        choices=["openai", "claude", "gemini"],
         help="LLM provider (default: openai)",
     )
     parser.add_argument(
@@ -214,7 +214,18 @@ def print_summary(cfg, result) -> None:
         f"Failed (after retries):  {result.failed:,}",
     ]
 
+    # Token usage (if tracked)
+    total_tokens = result.total_input_tokens + result.total_output_tokens
+    if total_tokens > 0:
+        lines.extend([
+            "",
+            f"Input tokens:    {result.total_input_tokens:,}",
+            f"Output tokens:   {result.total_output_tokens:,}",
+            f"Total tokens:    {total_tokens:,}",
+        ])
+
     if result.failures:
+        lines.append("")
         for failure in result.failures:
             lines.append(f"  - {failure}")
 
