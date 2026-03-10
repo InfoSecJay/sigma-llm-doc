@@ -210,7 +210,7 @@ class ClaudeProvider(LLMProvider):
 class GeminiProvider(LLMProvider):
     """Google Gemini LLM provider using the google-genai SDK."""
 
-    def __init__(self, api_key: str, model: str = "gemini-2.0-flash", api_max_retries: int = 3):
+    def __init__(self, api_key: str, model: str = "gemini-2.5-flash", api_max_retries: int = 3):
         self.client = genai.Client(api_key=api_key)
         self.model = model
         self.api_max_retries = api_max_retries

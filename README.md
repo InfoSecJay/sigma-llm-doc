@@ -172,7 +172,7 @@ output:
 |----------|-------------|---------------|-----------------|
 | OpenAI | `openai` | `gpt-4o-mini` | `OPENAI_API_KEY` |
 | Anthropic Claude | `claude` | `claude-sonnet-4-5-20250929` | `ANTHROPIC_API_KEY` |
-| Google Gemini | `gemini` | `gemini-2.0-flash` | `GEMINI_API_KEY` |
+| Google Gemini | `gemini` | `gemini-2.5-flash` | `GEMINI_API_KEY` |
 
 When you switch providers with `--provider`, the default model and API key env var are automatically resolved. You can override the model with `--model` or the env var with `api_key_env` in the config file.
 

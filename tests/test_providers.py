@@ -40,7 +40,7 @@ def test_claude_provider_constructor():
 
 def test_gemini_provider_constructor():
     provider = GeminiProvider(api_key="test-key")
-    assert provider.model == "gemini-2.0-flash"
+    assert provider.model == "gemini-2.5-flash"
     assert provider.api_max_retries == 3
 
 

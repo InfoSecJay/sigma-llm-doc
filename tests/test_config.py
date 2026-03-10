@@ -39,7 +39,7 @@ def test_provider_defaults_include_gemini():
     assert "gemini" in PROVIDER_API_KEY_ENV
     assert PROVIDER_API_KEY_ENV["gemini"] == "GEMINI_API_KEY"
     assert "gemini" in PROVIDER_DEFAULT_MODEL
-    assert PROVIDER_DEFAULT_MODEL["gemini"] == "gemini-2.0-flash"
+    assert PROVIDER_DEFAULT_MODEL["gemini"] == "gemini-2.5-flash"
 
 
 def test_default_provider_is_openai(tmp_path):
@@ -70,7 +70,7 @@ def test_provider_gemini_resolves_defaults(tmp_path):
     args = _make_args(input=str(input_file), provider="gemini")
     cfg = load_config(args)
     assert cfg.provider == "gemini"
-    assert cfg.model == "gemini-2.0-flash"
+    assert cfg.model == "gemini-2.5-flash"
 
 
 def test_cli_model_overrides_provider_default(tmp_path):

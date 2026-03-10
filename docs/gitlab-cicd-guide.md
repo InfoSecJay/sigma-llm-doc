@@ -248,12 +248,12 @@ Trigger manually from **CI/CD > Pipelines > Run Pipeline**.
 | OpenAI | gpt-4o | Medium | ~$40 | Medium |
 | Anthropic | claude-sonnet-4-5 | High | ~$87 | Medium |
 | Anthropic | claude-opus-4-6 | Highest | ~$145 | Slow |
-| Google | gemini-2.0-flash | Medium | ~$3 | Fast |
+| Google | gemini-2.5-flash | Medium | ~$3 | Fast |
 | Google | gemini-2.5-pro | High | ~$30 | Medium |
 
 ### Recommended Strategy
 
-- **Development/testing**: Use `gemini-2.0-flash` or `gpt-4o-mini` (cheapest, fastest)
+- **Development/testing**: Use `gemini-2.5-flash` or `gpt-4o-mini` (cheapest, fastest)
 - **Production**: Use `claude-sonnet-4-5` or `gpt-4o` (best quality/cost balance)
 - **Premium quality**: Use `claude-opus-4-6` (highest quality investigation guides)
 

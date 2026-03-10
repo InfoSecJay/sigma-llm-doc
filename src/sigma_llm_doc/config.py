@@ -32,7 +32,7 @@ PROVIDER_API_KEY_ENV = {
 PROVIDER_DEFAULT_MODEL = {
     "openai": "gpt-4o-mini",
     "claude": "claude-sonnet-4-5-20250929",
-    "gemini": "gemini-2.0-flash",
+    "gemini": "gemini-2.5-flash",
 }
 
 
