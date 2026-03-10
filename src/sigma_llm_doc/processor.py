@@ -293,8 +293,19 @@ async def _process_single_rule(
                 return
             continue
 
+        # Log raw response for debugging
+        logger.debug(
+            "Raw LLM response for %s (attempt %d):\n%s",
+            relative_str, attempt, raw_response,
+        )
+
         # Normalize before validating (strip dividers, convert * to - bullets)
         cleaned_response = _clean_markdown(raw_response)
+
+        logger.debug(
+            "Cleaned response for %s (attempt %d):\n%s",
+            relative_str, attempt, cleaned_response,
+        )
 
         # Validate the normalized response
         validation = validate_response(cleaned_response)
