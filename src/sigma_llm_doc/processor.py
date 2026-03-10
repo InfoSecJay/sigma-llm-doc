@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -43,9 +44,9 @@ def _get_default_prompt() -> str:
 def _clean_markdown(text: str) -> str:
     """Normalize whitespace in generated markdown for clean YAML embedding.
 
-    Strips horizontal rule dividers (---), collapses multiple blank lines into
-    single blank lines, strips trailing whitespace from each line, and ensures
-    a single trailing newline.
+    Strips horizontal rule dividers (---), converts * bullets to - bullets,
+    collapses multiple blank lines into single blank lines, strips trailing
+    whitespace from each line, and ensures a single trailing newline.
     """
     lines = text.strip().splitlines()
 
@@ -55,6 +56,9 @@ def _clean_markdown(text: str) -> str:
     output: list[str] = []
     prev_blank = True
 
+    # Pattern to match * bullet lines: optional whitespace, then * and a space
+    star_bullet = re.compile(r'^(\s*)\*(\s)')
+
     for line in lines:
         stripped = line.rstrip()
         if not stripped:
@@ -62,6 +66,8 @@ def _clean_markdown(text: str) -> str:
                 output.append("")
             prev_blank = True
         else:
+            # Convert * bullets to - bullets
+            stripped = star_bullet.sub(r'\1-\2', stripped)
             output.append(stripped)
             prev_blank = False
 
@@ -287,12 +293,15 @@ async def _process_single_rule(
                 return
             continue
 
-        # Validate the response
-        validation = validate_response(raw_response)
+        # Normalize before validating (strip dividers, convert * to - bullets)
+        cleaned_response = _clean_markdown(raw_response)
+
+        # Validate the normalized response
+        validation = validate_response(cleaned_response)
         last_validation = validation
 
         if validation.passed:
-            response = raw_response
+            response = cleaned_response
             break
 
         logger.warning(
@@ -311,8 +320,8 @@ async def _process_single_rule(
         )
         return
 
-    # Clean and set the note field, appending disclaimer if missing
-    cleaned = _clean_markdown(response)
+    # Response is already cleaned/normalized — append disclaimer if missing
+    cleaned = response
     if DISCLAIMER_TEXT not in cleaned:
         cleaned = cleaned.rstrip("\n") + "\n\n" + DISCLAIMER_TEXT + "\n"
     rule_data["note"] = LiteralScalarString(cleaned)

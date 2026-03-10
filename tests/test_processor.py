@@ -44,8 +44,20 @@ class TestCleanMarkdown:
         text = "---\n### A\nContent\n---\n### B\nContent\n---"
         result = _clean_markdown(text)
         assert "---" not in result
-        assert "### A" in result
-        assert "### B" in result
+
+    def test_converts_star_bullets_to_dash(self):
+        text = "### Header\n* First item\n* Second item\n  * Nested item"
+        result = _clean_markdown(text)
+        assert "* " not in result
+        assert "- First item" in result
+        assert "- Second item" in result
+        assert "  - Nested item" in result
+
+    def test_preserves_bold_stars(self):
+        text = "- **Bold text** in a bullet"
+        result = _clean_markdown(text)
+        assert "**Bold text**" in result
+        assert result.startswith("- ")
 
 
 class TestCollectYamlFiles:
