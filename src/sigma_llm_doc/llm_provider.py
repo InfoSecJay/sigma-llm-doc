@@ -5,6 +5,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
+import httpx
 from openai import AsyncOpenAI, APIError, RateLimitError, APITimeoutError, APIConnectionError
 
 import anthropic
@@ -64,8 +65,22 @@ class LLMProvider(ABC):
 class OpenAIProvider(LLMProvider):
     """OpenAI LLM provider using the modern AsyncOpenAI SDK (>=1.0)."""
 
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini", api_max_retries: int = 3):
-        self.client = AsyncOpenAI(api_key=api_key)
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gpt-4o-mini",
+        api_max_retries: int = 3,
+        base_url: str | None = None,
+        proxy: str | None = None,
+        **kwargs,
+    ):
+        client_kwargs: dict = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        if proxy:
+            client_kwargs["http_client"] = httpx.AsyncClient(proxy=proxy)
+
+        self.client = AsyncOpenAI(**client_kwargs)
         self.model = model
         self.api_max_retries = api_max_retries
 
@@ -138,8 +153,22 @@ class OpenAIProvider(LLMProvider):
 class ClaudeProvider(LLMProvider):
     """Anthropic Claude LLM provider using the AsyncAnthropic SDK."""
 
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-5-20250929", api_max_retries: int = 3):
-        self.client = AsyncAnthropic(api_key=api_key)
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "claude-sonnet-4-5-20250929",
+        api_max_retries: int = 3,
+        base_url: str | None = None,
+        proxy: str | None = None,
+        **kwargs,
+    ):
+        client_kwargs: dict = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        if proxy:
+            client_kwargs["http_client"] = httpx.AsyncClient(proxy=proxy)
+
+        self.client = AsyncAnthropic(**client_kwargs)
         self.model = model
         self.api_max_retries = api_max_retries
 
@@ -208,10 +237,52 @@ class ClaudeProvider(LLMProvider):
 
 @register_provider("gemini")
 class GeminiProvider(LLMProvider):
-    """Google Gemini LLM provider using the google-genai SDK."""
+    """Google Gemini LLM provider using the google-genai SDK.
 
-    def __init__(self, api_key: str, model: str = "gemini-2.5-flash", api_max_retries: int = 3):
-        self.client = genai.Client(api_key=api_key)
+    Supports both the consumer Gemini API (api_key) and Vertex AI
+    (vertexai=True with project/location and ADC authentication).
+    """
+
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model: str = "gemini-2.5-flash",
+        api_max_retries: int = 3,
+        vertexai: bool = False,
+        project: str | None = None,
+        location: str | None = None,
+        base_url: str | None = None,
+        proxy: str | None = None,
+        **kwargs,
+    ):
+        client_kwargs: dict = {}
+
+        if vertexai:
+            client_kwargs["vertexai"] = True
+            if project:
+                client_kwargs["project"] = project
+            if location:
+                client_kwargs["location"] = location
+            logger.info(
+                "Gemini using Vertex AI (project=%s, location=%s)",
+                project or "auto", location or "auto",
+            )
+        else:
+            if not api_key:
+                raise ValueError("Gemini consumer API requires an api_key (or use vertexai=True)")
+            client_kwargs["api_key"] = api_key
+
+        # Configure proxy and/or custom base URL via HttpOptions
+        if proxy or base_url:
+            http_opts: dict = {}
+            if base_url:
+                http_opts["base_url"] = base_url
+            if proxy:
+                http_opts["client_args"] = {"proxy": proxy}
+                http_opts["async_client_args"] = {"proxy": proxy}
+            client_kwargs["http_options"] = http_opts
+
+        self.client = genai.Client(**client_kwargs)
         self.model = model
         self.api_max_retries = api_max_retries
 

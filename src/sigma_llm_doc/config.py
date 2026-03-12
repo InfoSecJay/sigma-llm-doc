@@ -53,6 +53,13 @@ class AppConfig:
     check: bool
     verbose: bool
     quiet: bool
+    # Enterprise / network options
+    base_url: str | None = None
+    proxy: str | None = None
+    # Vertex AI options (Gemini only)
+    vertexai: bool = False
+    gcp_project: str | None = None
+    gcp_location: str | None = None
 
 
 def load_config(args) -> AppConfig:
@@ -97,13 +104,42 @@ def load_config(args) -> AppConfig:
         "directory", DEFAULTS["output"]
     )
 
+    # Resolve enterprise / network options
+    base_url = (
+        getattr(args, "base_url", None)
+        or file_cfg.get("llm", {}).get("base_url")
+    )
+    proxy = (
+        getattr(args, "proxy", None)
+        or file_cfg.get("llm", {}).get("proxy")
+    )
+
+    # Resolve Vertex AI options (Gemini only)
+    vertexai = (
+        getattr(args, "vertexai", False)
+        or file_cfg.get("llm", {}).get("vertexai", False)
+    )
+    gcp_project = (
+        getattr(args, "gcp_project", None)
+        or file_cfg.get("llm", {}).get("gcp_project")
+        or os.environ.get("GOOGLE_CLOUD_PROJECT")
+    )
+    gcp_location = (
+        getattr(args, "gcp_location", None)
+        or file_cfg.get("llm", {}).get("gcp_location")
+        or os.environ.get("GOOGLE_CLOUD_LOCATION")
+    )
+
     # Resolve API key from environment
+    # Vertex AI uses ADC (Application Default Credentials) — no API key needed
     api_key = os.environ.get(api_key_env, "")
 
     # Check mode doesn't require an API key
-    if not args.check and not api_key:
+    # Vertex AI mode uses ADC instead of an API key
+    if not args.check and not api_key and not vertexai:
         logger.error(
-            "API key not found. Set the %s environment variable or add it to a .env file.",
+            "API key not found. Set the %s environment variable or add it to a .env file. "
+            "For Vertex AI, use --vertexai instead.",
             api_key_env,
         )
         raise SystemExit(1)
@@ -135,6 +171,11 @@ def load_config(args) -> AppConfig:
         check=args.check,
         verbose=args.verbose,
         quiet=args.quiet,
+        base_url=base_url,
+        proxy=proxy,
+        vertexai=vertexai,
+        gcp_project=gcp_project,
+        gcp_location=gcp_location,
     )
 
     _validate_config(cfg)

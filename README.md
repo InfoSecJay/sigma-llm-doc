@@ -22,7 +22,7 @@ Mirrored external Sigma repo (SigmaHQ, LOLRMM, custom)
 - An API key for at least one supported provider:
   - **OpenAI** (`OPENAI_API_KEY`) -- default provider
   - **Anthropic Claude** (`ANTHROPIC_API_KEY`)
-  - **Google Gemini** (`GEMINI_API_KEY`)
+  - **Google Gemini** (`GEMINI_API_KEY`) -- or Vertex AI with Application Default Credentials
 
 ## Installation
 
@@ -66,6 +66,8 @@ python -m sigma_llm_doc ./rules/
 usage: sigma-llm-doc [-h] [--config CONFIG] [--prompt PROMPT]
                      [--output OUTPUT] [--provider {openai,claude,gemini}]
                      [--model MODEL] [--concurrency N] [--force] [--check]
+                     [--base-url URL] [--proxy URL]
+                     [--vertexai] [--gcp-project ID] [--gcp-location REGION]
                      [--verbose | --quiet]
                      input
 
@@ -85,6 +87,11 @@ optional arguments:
   --concurrency N       Max concurrent API calls (default: 5)
   --force               Regenerate all guides, ignoring cache
   --check               Validate existing guides without generating new ones
+  --base-url URL        Custom API base URL (e.g., Azure OpenAI endpoint)
+  --proxy URL           HTTP/HTTPS proxy URL
+  --vertexai            Use Google Vertex AI instead of consumer Gemini API
+  --gcp-project ID      Google Cloud project ID (Vertex AI)
+  --gcp-location REGION Vertex AI location (e.g., us-central1)
   --verbose             Increase log verbosity (debug level)
   --quiet               Suppress all output except errors and summary
 ```
@@ -145,6 +152,26 @@ Use a specific Gemini model:
 sigma-llm-doc ./sigma-rules/ --provider gemini --model gemini-2.5-pro
 ```
 
+Use Google Vertex AI (enterprise GCP):
+
+```bash
+sigma-llm-doc ./sigma-rules/ --provider gemini --vertexai \
+  --gcp-project my-gcp-project --gcp-location us-central1
+```
+
+Use through a corporate proxy:
+
+```bash
+sigma-llm-doc ./sigma-rules/ --proxy http://proxy.corp.example.com:8080
+```
+
+Use a custom API endpoint (e.g., Azure OpenAI):
+
+```bash
+sigma-llm-doc ./sigma-rules/ --provider openai \
+  --base-url https://my-deployment.openai.azure.com/
+```
+
 ## Configuration
 
 Configuration is resolved with this priority: **CLI arguments > config file > defaults**.
@@ -158,6 +185,13 @@ llm:
   provider: openai          # openai, claude, or gemini
   model: gpt-4o-mini        # model name (default depends on provider)
   api_key_env: OPENAI_API_KEY
+  # Enterprise / network options (optional)
+  # base_url: https://custom.api.example.com/v1
+  # proxy: http://proxy.corp.example.com:8080
+  # Vertex AI options (Gemini only)
+  # vertexai: true
+  # gcp_project: my-gcp-project
+  # gcp_location: us-central1
 processing:
   concurrency: 5
   max_retries: 3
@@ -168,13 +202,49 @@ output:
 
 ### Supported Providers
 
-| Provider | `--provider` | Default Model | API Key Env Var |
-|----------|-------------|---------------|-----------------|
-| OpenAI | `openai` | `gpt-4o-mini` | `OPENAI_API_KEY` |
-| Anthropic Claude | `claude` | `claude-sonnet-4-5-20250929` | `ANTHROPIC_API_KEY` |
-| Google Gemini | `gemini` | `gemini-2.5-flash` | `GEMINI_API_KEY` |
+| Provider | `--provider` | Default Model | API Key Env Var | Auth Method |
+|----------|-------------|---------------|-----------------|-------------|
+| OpenAI | `openai` | `gpt-4o-mini` | `OPENAI_API_KEY` | API key |
+| Anthropic Claude | `claude` | `claude-sonnet-4-5-20250929` | `ANTHROPIC_API_KEY` | API key |
+| Google Gemini | `gemini` | `gemini-2.5-flash` | `GEMINI_API_KEY` | API key |
+| Google Vertex AI | `gemini` + `--vertexai` | `gemini-2.5-flash` | N/A | GCP ADC |
 
 When you switch providers with `--provider`, the default model and API key env var are automatically resolved. You can override the model with `--model` or the env var with `api_key_env` in the config file.
+
+### Vertex AI (Enterprise GCP)
+
+For organizations using Google Cloud Vertex AI instead of the consumer Gemini API:
+
+```bash
+sigma-llm-doc ./rules/ --provider gemini --vertexai \
+  --gcp-project my-project --gcp-location us-central1
+```
+
+Vertex AI uses Application Default Credentials (ADC) instead of API keys. Authentication methods:
+- **GCE/GKE**: Automatic via instance metadata
+- **CI/CD**: Service account key file via `GOOGLE_APPLICATION_CREDENTIALS`
+- **Local dev**: `gcloud auth application-default login`
+
+GCP project and location can also be set via environment variables:
+- `GOOGLE_CLOUD_PROJECT` -- GCP project ID
+- `GOOGLE_CLOUD_LOCATION` -- Vertex AI region (e.g., `us-central1`)
+
+### Proxy and Custom Endpoints
+
+For enterprise environments behind a proxy or using custom API endpoints:
+
+```yaml
+# sigma-llm-doc.yaml
+llm:
+  provider: openai
+  proxy: http://proxy.corp.example.com:8080
+  # or custom base URL (e.g., Azure OpenAI, API gateway)
+  # base_url: https://my-deployment.openai.azure.com/
+```
+
+Or via CLI: `--proxy URL` and `--base-url URL`.
+
+All three providers also respect the standard `HTTP_PROXY`, `HTTPS_PROXY`, and `NO_PROXY` environment variables automatically.
 
 ### Environment Variables
 
@@ -254,7 +324,7 @@ See [docs/gitlab-cicd-guide.md](docs/gitlab-cicd-guide.md) for a complete GitLab
 pytest
 ```
 
-The test suite covers all modules: validator, cache, providers, config, processor, and CLI (67 tests).
+The test suite covers all modules: validator, cache, providers, config, processor, and CLI (81 tests).
 
 ## Project Structure
 

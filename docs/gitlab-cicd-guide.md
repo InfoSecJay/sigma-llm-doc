@@ -192,6 +192,50 @@ For shared API keys across multiple projects, set variables at the GitLab **Grou
 2. Update the GitLab CI/CD variable
 3. No code changes required — the tool reads from environment variables
 
+### Vertex AI Authentication (GCP)
+
+For organizations using Google Vertex AI instead of the consumer Gemini API, use service account authentication instead of API keys:
+
+1. Create a GCP service account with `Vertex AI User` role
+2. Export a JSON key file and add it as a GitLab CI/CD **File** variable named `GOOGLE_APPLICATION_CREDENTIALS`
+3. Set `GOOGLE_CLOUD_PROJECT` and `GOOGLE_CLOUD_LOCATION` as CI/CD variables
+
+```yaml
+variables:
+  LLM_PROVIDER: "gemini"
+  GOOGLE_CLOUD_PROJECT: "my-gcp-project"
+  GOOGLE_CLOUD_LOCATION: "us-central1"
+
+generate:
+  stage: generate
+  <<: *setup
+  script:
+    - sigma-llm-doc "$RULES_INPUT" --output "$RULES_OUTPUT" --provider gemini --vertexai
+```
+
+If your GitLab runner runs on GCE/GKE with Workload Identity, no credentials file is needed — ADC will use the instance service account automatically.
+
+### Proxy Configuration
+
+For enterprise environments behind a corporate proxy:
+
+```yaml
+variables:
+  HTTP_PROXY: "http://proxy.corp.example.com:8080"
+  HTTPS_PROXY: "http://proxy.corp.example.com:8080"
+  NO_PROXY: "internal.corp.example.com"
+```
+
+Or configure the proxy explicitly in the tool:
+
+```yaml
+# sigma-llm-doc.yaml
+llm:
+  proxy: http://proxy.corp.example.com:8080
+```
+
+All three providers (OpenAI, Claude, Gemini) respect both the config file `proxy` setting and the standard `HTTP_PROXY`/`HTTPS_PROXY` environment variables.
+
 ---
 
 ## Pipeline Workflows

@@ -30,6 +30,11 @@ def _make_args(**overrides):
         check=True,  # check mode doesn't require API key
         verbose=False,
         quiet=False,
+        base_url=None,
+        proxy=None,
+        vertexai=False,
+        gcp_project=None,
+        gcp_location=None,
     )
     defaults.update(overrides)
     return Namespace(**defaults)
@@ -183,3 +188,62 @@ def test_check_mode_no_api_key_ok(tmp_path):
         args = _make_args(input=str(input_file), check=True)
         cfg = load_config(args)
         assert cfg.check is True
+
+
+def test_vertexai_no_api_key_ok(tmp_path):
+    """Vertex AI mode should not require an API key."""
+    input_file = tmp_path / "test.yml"
+    input_file.write_text("title: test\n")
+
+    with patch.dict(os.environ, {"GEMINI_API_KEY": ""}, clear=False):
+        args = _make_args(
+            input=str(input_file),
+            check=False,
+            provider="gemini",
+            vertexai=True,
+            gcp_project="my-project",
+            gcp_location="us-central1",
+        )
+        cfg = load_config(args)
+        assert cfg.vertexai is True
+        assert cfg.gcp_project == "my-project"
+        assert cfg.gcp_location == "us-central1"
+        assert cfg.api_key == ""  # empty is OK for vertex
+
+
+def test_proxy_from_cli(tmp_path):
+    """Proxy should be resolved from CLI args."""
+    input_file = tmp_path / "test.yml"
+    input_file.write_text("title: test\n")
+
+    args = _make_args(
+        input=str(input_file),
+        proxy="http://proxy.corp.example.com:8080",
+    )
+    cfg = load_config(args)
+    assert cfg.proxy == "http://proxy.corp.example.com:8080"
+
+
+def test_base_url_from_cli(tmp_path):
+    """Base URL should be resolved from CLI args."""
+    input_file = tmp_path / "test.yml"
+    input_file.write_text("title: test\n")
+
+    args = _make_args(
+        input=str(input_file),
+        base_url="https://custom.openai.example.com/v1",
+    )
+    cfg = load_config(args)
+    assert cfg.base_url == "https://custom.openai.example.com/v1"
+
+
+def test_gcp_project_from_env(tmp_path):
+    """GCP project should fall back to GOOGLE_CLOUD_PROJECT env var."""
+    input_file = tmp_path / "test.yml"
+    input_file.write_text("title: test\n")
+
+    with patch.dict(os.environ, {"GOOGLE_CLOUD_PROJECT": "env-project", "GOOGLE_CLOUD_LOCATION": "europe-west1"}, clear=False):
+        args = _make_args(input=str(input_file), provider="gemini", vertexai=True)
+        cfg = load_config(args)
+        assert cfg.gcp_project == "env-project"
+        assert cfg.gcp_location == "europe-west1"

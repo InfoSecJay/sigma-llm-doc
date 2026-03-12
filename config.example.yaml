@@ -3,6 +3,16 @@ llm:
   provider: openai          # openai, claude, or gemini
   model: gpt-4o-mini        # model name (default depends on provider)
   api_key_env: OPENAI_API_KEY  # Name of the env var holding the key
+
+  # Enterprise / network options (uncomment as needed)
+  # proxy: http://proxy.corp.example.com:8080
+  # base_url: https://custom.api.example.com/v1
+
+  # Vertex AI options (Gemini only — uses ADC auth, no API key needed)
+  # vertexai: true
+  # gcp_project: my-gcp-project
+  # gcp_location: us-central1
+
 processing:
   concurrency: 5
   max_retries: 3             # Retries on validation failure

@@ -39,12 +39,21 @@ def main() -> None:
         sys.exit(0)
 
     # Initialize LLM provider
-    provider = get_provider(
-        cfg.provider,
-        api_key=cfg.api_key,
-        model=cfg.model,
-        api_max_retries=cfg.api_max_retries,
-    )
+    provider_kwargs: dict = {
+        "api_key": cfg.api_key or None,
+        "model": cfg.model,
+        "api_max_retries": cfg.api_max_retries,
+    }
+    if cfg.base_url:
+        provider_kwargs["base_url"] = cfg.base_url
+    if cfg.proxy:
+        provider_kwargs["proxy"] = cfg.proxy
+    if cfg.vertexai:
+        provider_kwargs["vertexai"] = True
+        provider_kwargs["project"] = cfg.gcp_project
+        provider_kwargs["location"] = cfg.gcp_location
+
+    provider = get_provider(cfg.provider, **provider_kwargs)
 
     # Run the async processing pipeline
     result = asyncio.run(
@@ -122,6 +131,39 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         default=False,
         help="Validate existing guides without generating new ones",
+    )
+
+    # Enterprise / network options
+    parser.add_argument(
+        "--base-url",
+        default=None,
+        dest="base_url",
+        help="Custom API base URL (e.g., Azure OpenAI endpoint, private proxy)",
+    )
+    parser.add_argument(
+        "--proxy",
+        default=None,
+        help="HTTP/HTTPS proxy URL (e.g., http://proxy.corp.example.com:8080)",
+    )
+
+    # Vertex AI options (Gemini only)
+    parser.add_argument(
+        "--vertexai",
+        action="store_true",
+        default=False,
+        help="Use Google Vertex AI instead of the consumer Gemini API (uses ADC auth)",
+    )
+    parser.add_argument(
+        "--gcp-project",
+        default=None,
+        dest="gcp_project",
+        help="Google Cloud project ID (Vertex AI only, or set GOOGLE_CLOUD_PROJECT)",
+    )
+    parser.add_argument(
+        "--gcp-location",
+        default=None,
+        dest="gcp_location",
+        help="Vertex AI location (e.g., us-central1, or set GOOGLE_CLOUD_LOCATION)",
     )
 
     verbosity = parser.add_mutually_exclusive_group()

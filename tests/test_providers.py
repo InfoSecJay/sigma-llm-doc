@@ -172,3 +172,34 @@ async def test_openai_retries_on_rate_limit():
         result = await provider.generate("prompt", "rule")
         assert result.text == "success"
         assert mock_create.call_count == 2
+
+
+def test_openai_base_url():
+    provider = OpenAIProvider(api_key="test", base_url="https://custom.openai.example.com/v1")
+    assert str(provider.client.base_url).startswith("https://custom.openai.example.com")
+
+
+def test_claude_base_url():
+    provider = ClaudeProvider(api_key="test", base_url="https://custom.anthropic.example.com")
+    assert str(provider.client.base_url).startswith("https://custom.anthropic.example.com")
+
+
+def test_gemini_vertexai_constructor():
+    """Vertex AI mode should not require an api_key."""
+    provider = GeminiProvider(vertexai=True, project="my-project", location="us-central1")
+    assert provider.model == "gemini-2.5-flash"
+
+
+def test_gemini_consumer_requires_api_key():
+    """Consumer Gemini API should raise if no api_key and not vertexai."""
+    with pytest.raises(ValueError, match="requires an api_key"):
+        GeminiProvider()
+
+
+def test_providers_accept_extra_kwargs():
+    """Providers should silently ignore unknown kwargs (forward-compat)."""
+    provider = OpenAIProvider(api_key="test", vertexai=True, gcp_project="ignored")
+    assert provider.model == "gpt-4o-mini"
+
+    provider = ClaudeProvider(api_key="test", vertexai=True, project="ignored")
+    assert provider.model == "claude-sonnet-4-5-20250929"
