@@ -35,6 +35,7 @@ def _make_args(**overrides):
         vertexai=False,
         gcp_project=None,
         gcp_location=None,
+        gcp_credentials=None,
     )
     defaults.update(overrides)
     return Namespace(**defaults)

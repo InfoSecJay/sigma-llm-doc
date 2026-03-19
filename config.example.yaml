@@ -8,10 +8,11 @@ llm:
   # proxy: http://proxy.corp.example.com:8080
   # base_url: https://custom.api.example.com/v1
 
-  # Vertex AI options (Gemini only — uses ADC auth, no API key needed)
+  # Vertex AI options (Gemini only — no API key needed)
   # vertexai: true
   # gcp_project: my-gcp-project
   # gcp_location: us-central1
+  # gcp_credentials_path: /path/to/service-account.json  # or set GOOGLE_APPLICATION_CREDENTIALS
 
 processing:
   concurrency: 5

@@ -60,6 +60,7 @@ class AppConfig:
     vertexai: bool = False
     gcp_project: str | None = None
     gcp_location: str | None = None
+    gcp_credentials_path: str | None = None
 
 
 def load_config(args) -> AppConfig:
@@ -129,6 +130,16 @@ def load_config(args) -> AppConfig:
         or file_cfg.get("llm", {}).get("gcp_location")
         or os.environ.get("GOOGLE_CLOUD_LOCATION")
     )
+    gcp_credentials_path = (
+        getattr(args, "gcp_credentials", None)
+        or file_cfg.get("llm", {}).get("gcp_credentials_path")
+        or os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+    )
+
+    # Validate credentials file exists if specified
+    if gcp_credentials_path and not Path(gcp_credentials_path).exists():
+        logger.error("GCP credentials file not found: %s", gcp_credentials_path)
+        raise SystemExit(1)
 
     # Resolve API key from environment
     # Vertex AI uses ADC (Application Default Credentials) — no API key needed
@@ -176,6 +187,7 @@ def load_config(args) -> AppConfig:
         vertexai=vertexai,
         gcp_project=gcp_project,
         gcp_location=gcp_location,
+        gcp_credentials_path=gcp_credentials_path,
     )
 
     _validate_config(cfg)

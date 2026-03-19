@@ -52,6 +52,8 @@ def main() -> None:
         provider_kwargs["vertexai"] = True
         provider_kwargs["project"] = cfg.gcp_project
         provider_kwargs["location"] = cfg.gcp_location
+        if cfg.gcp_credentials_path:
+            provider_kwargs["credentials_path"] = cfg.gcp_credentials_path
 
     provider = get_provider(cfg.provider, **provider_kwargs)
 
@@ -164,6 +166,12 @@ def parse_args() -> argparse.Namespace:
         default=None,
         dest="gcp_location",
         help="Vertex AI location (e.g., us-central1, or set GOOGLE_CLOUD_LOCATION)",
+    )
+    parser.add_argument(
+        "--gcp-credentials",
+        default=None,
+        dest="gcp_credentials",
+        help="Path to GCP service account JSON file (Vertex AI only, or set GOOGLE_APPLICATION_CREDENTIALS)",
     )
 
     verbosity = parser.add_mutually_exclusive_group()

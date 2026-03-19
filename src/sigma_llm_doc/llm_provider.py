@@ -240,7 +240,9 @@ class GeminiProvider(LLMProvider):
     """Google Gemini LLM provider using the google-genai SDK.
 
     Supports both the consumer Gemini API (api_key) and Vertex AI
-    (vertexai=True with project/location and ADC authentication).
+    (vertexai=True with project/location). Vertex AI authentication
+    supports both ADC (Application Default Credentials) and explicit
+    service account JSON files via credentials_path.
     """
 
     def __init__(
@@ -251,6 +253,7 @@ class GeminiProvider(LLMProvider):
         vertexai: bool = False,
         project: str | None = None,
         location: str | None = None,
+        credentials_path: str | None = None,
         base_url: str | None = None,
         proxy: str | None = None,
         **kwargs,
@@ -263,10 +266,24 @@ class GeminiProvider(LLMProvider):
                 client_kwargs["project"] = project
             if location:
                 client_kwargs["location"] = location
-            logger.info(
-                "Gemini using Vertex AI (project=%s, location=%s)",
-                project or "auto", location or "auto",
-            )
+
+            # Service account credentials (explicit JSON file)
+            if credentials_path:
+                from google.oauth2 import service_account
+                credentials = service_account.Credentials.from_service_account_file(
+                    credentials_path,
+                    scopes=["https://www.googleapis.com/auth/cloud-platform"],
+                )
+                client_kwargs["credentials"] = credentials
+                logger.info(
+                    "Gemini using Vertex AI with service account (project=%s, location=%s, credentials=%s)",
+                    project or "auto", location or "auto", credentials_path,
+                )
+            else:
+                logger.info(
+                    "Gemini using Vertex AI with ADC (project=%s, location=%s)",
+                    project or "auto", location or "auto",
+                )
         else:
             if not api_key:
                 raise ValueError("Gemini consumer API requires an api_key (or use vertexai=True)")

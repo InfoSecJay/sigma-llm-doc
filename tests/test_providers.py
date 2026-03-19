@@ -190,6 +190,26 @@ def test_gemini_vertexai_constructor():
     assert provider.model == "gemini-2.5-flash"
 
 
+def test_gemini_vertexai_with_credentials_path(tmp_path):
+    """Vertex AI with service account JSON file."""
+    from unittest.mock import patch, MagicMock
+
+    mock_creds = MagicMock()
+    with patch(
+        "google.oauth2.service_account.Credentials.from_service_account_file",
+        return_value=mock_creds,
+    ):
+        sa_file = tmp_path / "sa.json"
+        sa_file.write_text('{"type": "service_account"}')
+        provider = GeminiProvider(
+            vertexai=True,
+            project="my-project",
+            location="us-central1",
+            credentials_path=str(sa_file),
+        )
+        assert provider.model == "gemini-2.5-flash"
+
+
 def test_gemini_consumer_requires_api_key():
     """Consumer Gemini API should raise if no api_key and not vertexai."""
     with pytest.raises(ValueError, match="requires an api_key"):
