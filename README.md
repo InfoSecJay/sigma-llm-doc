@@ -68,6 +68,7 @@ usage: sigma-llm-doc [-h] [--config CONFIG] [--prompt PROMPT]
                      [--model MODEL] [--concurrency N] [--force] [--check]
                      [--base-url URL] [--proxy URL]
                      [--vertexai] [--gcp-project ID] [--gcp-location REGION]
+                     [--gcp-credentials PATH]
                      [--verbose | --quiet]
                      input
 
@@ -92,6 +93,7 @@ optional arguments:
   --vertexai            Use Google Vertex AI instead of consumer Gemini API
   --gcp-project ID      Google Cloud project ID (Vertex AI)
   --gcp-location REGION Vertex AI location (e.g., us-central1)
+  --gcp-credentials PATH Path to GCP service account JSON file (Vertex AI)
   --verbose             Increase log verbosity (debug level)
   --quiet               Suppress all output except errors and summary
 ```
@@ -221,13 +223,23 @@ sigma-llm-doc ./rules/ --provider gemini --vertexai \
 ```
 
 Vertex AI uses Application Default Credentials (ADC) instead of API keys. Authentication methods:
+- **Service account JSON file** (recommended for CI/CD): `--gcp-credentials /path/to/sa.json`
 - **GCE/GKE**: Automatic via instance metadata
-- **CI/CD**: Service account key file via `GOOGLE_APPLICATION_CREDENTIALS`
+- **CI/CD**: Service account key file via `GOOGLE_APPLICATION_CREDENTIALS` env var
 - **Local dev**: `gcloud auth application-default login`
 
-GCP project and location can also be set via environment variables:
+Use a service account with explicit credentials:
+
+```bash
+sigma-llm-doc ./rules/ --provider gemini --vertexai \
+  --gcp-project my-project --gcp-location us-central1 \
+  --gcp-credentials /path/to/service-account.json
+```
+
+GCP project, location, and credentials can also be set via environment variables:
 - `GOOGLE_CLOUD_PROJECT` -- GCP project ID
 - `GOOGLE_CLOUD_LOCATION` -- Vertex AI region (e.g., `us-central1`)
+- `GOOGLE_APPLICATION_CREDENTIALS` -- path to service account JSON file
 
 ### Proxy and Custom Endpoints
 
@@ -324,7 +336,103 @@ See [docs/gitlab-cicd-guide.md](docs/gitlab-cicd-guide.md) for a complete GitLab
 pytest
 ```
 
-The test suite covers all modules: validator, cache, providers, config, processor, and CLI (81 tests).
+The test suite covers all modules: validator, cache, providers, config, processor, and CLI (82 tests).
+
+## Troubleshooting
+
+### `Expecting value: line 1 column 1 (char 0)` — Empty API responses
+
+**Symptom**: Every rule fails with this JSON decode error, but the HTTP response shows `200 OK`.
+
+**Cause**: A corporate proxy is intercepting HTTPS traffic and returning its own response (HTML block page) instead of the actual API response. Check the response headers — if you see `Content-Type: text/html` instead of `application/json`, the proxy is the problem.
+
+**Solutions**:
+
+1. **Switch to Vertex AI with a service account** (recommended for corporate environments):
+   ```bash
+   sigma-llm-doc ./rules/ --provider gemini --vertexai \
+     --gcp-project my-project --gcp-location us-central1 \
+     --gcp-credentials /path/to/sa.json
+   ```
+   Vertex AI uses `*.googleapis.com` endpoints which corporate networks typically allow.
+
+2. **Bypass the proxy for the Gemini API** (if using consumer API):
+   ```bash
+   export NO_PROXY="${NO_PROXY},generativelanguage.googleapis.com"
+   export no_proxy="${no_proxy},generativelanguage.googleapis.com"
+   ```
+
+3. **Patch the certifi CA bundle** so `httpx` trusts your corporate CA:
+   ```bash
+   python -c "
+   import certifi
+   with open('/etc/ssl/certs/ca-certificates.crt', 'rb') as corp, open(certifi.where(), 'ab') as bundle:
+       bundle.write(b'\n')
+       bundle.write(corp.read())
+   "
+   ```
+
+> **Note**: The `google-genai` SDK uses `httpx` internally, which does NOT respect `REQUESTS_CA_BUNDLE` or `SSL_CERT_FILE` environment variables. Setting those only helps `requests`-based libraries, not `httpx`.
+
+### GitLab CI job log exceeds 4MB limit
+
+**Symptom**: `Job's log exceeded limit of 4194304 bytes. Job execution will continue but no more output will be collected.`
+
+**Cause**: Running with `--verbose` logs the full raw and cleaned LLM response for every rule at DEBUG level. With 400+ rules, this easily exceeds GitLab's default 4MB log limit.
+
+**Solutions**:
+
+1. **Don't use `--verbose` in CI** (recommended). Normal INFO level still shows batch progress, errors, and the final summary. The full DEBUG log is always written to `<output_dir>/sigma-llm-doc.log` regardless of console verbosity.
+
+2. **Redirect verbose output to a file artifact**:
+   ```yaml
+   script:
+     - sigma-llm-doc ./rules/ --provider gemini --vertexai
+         --gcp-project $GCP_PROJECT --gcp-location $GCP_LOCATION
+         --gcp-credentials $GCP_SA_KEY
+         --concurrency 10 --verbose 2> verbose.log || true
+
+   artifacts:
+     paths:
+       - verbose.log
+       - ./output/sigma-llm-doc.log
+     when: always
+     expire_in: 7 days
+   ```
+
+3. **Increase the runner log limit** (requires admin access to GitLab Runner):
+   ```toml
+   # /etc/gitlab-runner/config.toml
+   [[runners]]
+     output_limit = 16384  # 16MB, default is 4MB (value in KB)
+   ```
+
+### Logging levels
+
+| Flag | Console Level | Use Case |
+|------|--------------|----------|
+| *(default)* | INFO | CI/CD — batch progress, errors, summary |
+| `--verbose` | DEBUG | Local debugging — full LLM responses, HTTP details |
+| `--quiet` | ERROR | Scripting — only errors and the final summary |
+
+The file log (`<output_dir>/sigma-llm-doc.log`) always captures DEBUG level regardless of the console flag. Download it as a CI artifact when you need to troubleshoot a specific rule failure.
+
+### GitLab CI push fails with 403
+
+**Symptom**: `remote: You are not allowed to push code to this project. fatal: unable to access ... 403`
+
+**Cause**: `CI_JOB_TOKEN` is read-only by default and cannot push code.
+
+**Solution**: Use a Project Access Token with `write_repository` scope:
+
+1. In GitLab, go to **Settings → Access Tokens**
+2. Create a token with `write_repository` scope (role: Maintainer)
+3. Add it as a CI/CD variable named `GITLAB_PUSH_TOKEN` (masked, protected)
+4. In your `.gitlab-ci.yml`:
+   ```yaml
+   before_script:
+     - git remote set-url origin "https://ci-push-token:${GITLAB_PUSH_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+   ```
 
 ## Project Structure
 
