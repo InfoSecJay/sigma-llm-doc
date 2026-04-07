@@ -439,6 +439,7 @@ The file log (`<output_dir>/sigma-llm-doc.log`) always captures DEBUG level rega
 ```
 sigma-llm-doc/
   pyproject.toml              # PEP 621 project metadata, deps, entry point
+  LICENSE                     # MIT License
   .gitignore
   .env.example                # Example environment file
   config.example.yaml         # Example config file

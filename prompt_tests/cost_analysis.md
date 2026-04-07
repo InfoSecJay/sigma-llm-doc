@@ -1,5 +1,7 @@
 # LLM Model Cost Analysis for sigma-llm-doc
 
+> **Note:** Pricing data collected April 2026. Check provider dashboards for current rates.
+
 ## Baseline Metrics (from gpt-4o-mini run)
 
 | Metric | Value |
@@ -36,7 +38,7 @@
 
 - **Prompt caching**: Up to 90% savings on input tokens (prompt is identical across all rules). Cache reads at 10% of base input price. With caching, the ~1,000 prompt tokens per request drop to ~$0.50/1M instead of $5/1M.
 - **Batch API**: 50% discount for async processing.
-- Requires adding a Claude provider to sigma-llm-doc.
+- Claude provider included in sigma-llm-doc v1.1.0: `--provider claude`
 
 ---
 
@@ -50,7 +52,7 @@
 
 - **Prompt caching**: Cache reads at 10% of base input price.
 - **Batch API**: 50% discount for async processing.
-- Requires adding a Gemini provider to sigma-llm-doc.
+- Gemini provider included in sigma-llm-doc v1.1.0: `--provider gemini`
 
 ---
 
@@ -68,10 +70,10 @@
 
 ## Implementation Notes
 
-- **Currently supported**: OpenAI models only (via `--model` flag)
-- **To add**: Claude and Gemini providers would need new provider classes in `llm_provider.py`
-- Many providers offer OpenAI-compatible endpoints, simplifying integration
-- For manual quality comparison, paste the prompt + a sample rule into each provider's chat UI
+- **All three providers supported** in sigma-llm-doc v1.1.0: OpenAI, Anthropic Claude, and Google Gemini
+- Switch providers with `--provider openai|claude|gemini` and `--model` flags
+- Vertex AI supported for enterprise GCP environments: `--provider gemini --vertexai`
+- Proxy support for corporate environments: `--proxy URL`
 
 ---
 

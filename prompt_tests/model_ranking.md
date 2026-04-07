@@ -3,6 +3,7 @@
 **Test Rule:** HackTool - Bloodhound/Sharphound Execution (f376c8a7-a2d0-4ddc-aa0c-16c17236d962)
 **Prompt:** default_prompt_sample_test.txt
 **Evaluation Perspective:** SOC Analyst / Incident Responder performing triage
+**Date:** April 2026
 
 ---
 
